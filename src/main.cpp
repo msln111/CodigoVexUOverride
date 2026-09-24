@@ -62,13 +62,11 @@ void opcontrol() {
             -master.get_analog(
                 pros::E_CONTROLLER_ANALOG_RIGHT_X
             );
-
+// The turn axis is inverted so that positive values
         bool turn_requested =
             std::abs(turn) >= DEADBAND;
-
         bool drive_requested =
             std::abs(forward) >= DEADBAND;
-
         if (std::abs(forward) < DEADBAND) {
             forward = 0;
         }
