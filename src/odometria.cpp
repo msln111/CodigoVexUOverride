@@ -23,8 +23,8 @@ static const double LY=1.25;//Distancia del encoder al centro de rotacion
 
 static double ultimaPosicionHorizontal=0.0, ultimaPosicionVertical=0.0, ultimaPosicionTheta=0.0;
 
-pros::MotorGroup left_motors({-1, 2, -3, -13}); // No invertir los motores izquierdos
-pros::MotorGroup right_motors({5, -6, 7, 8}); // Invertir los motores derechos
+pros::MotorGroup leftMotors({-1, 2, -3, -13}); // No invertir los motores izquierdos
+pros::MotorGroup rightMotors({5, -6, 7, 8}); // Invertir los motores derechos
 
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 
@@ -37,8 +37,8 @@ void get_position(double &x, double &y, double &theta) {
 }
 
 void set_tank_speed(double left_speed, double right_speed) {
-    left_motors.move_velocity(left_speed);
-    right_motors.move_velocity(right_speed);
+    leftMotors.move_velocity(left_speed);
+    rightMotors.move_velocity(right_speed);
 }
 
 void tareaOdometria(void* param) {

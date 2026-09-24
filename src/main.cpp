@@ -8,6 +8,12 @@ void initialize() {
 }
 
 void opcontrol() {
+      pros::lcd::set_text(0, "OPCONTROL RUNNING");
+
+        while (true) {
+        set_tank_speed(200, 200);
+        pros::delay(20);
+        }
         const int DEADBAND = 10;
         const double MAX_SPEED = 600.0; // Velocidad máxima del robot en RPM
         const double MAX_TURN_RPM = 300.0; // Velocidad máxima de giro en RPM
@@ -23,10 +29,9 @@ void opcontrol() {
 
         if (abs(stickIzquierdo) < DEADBAND) stickIzquierdo = 0;
         if (abs(stickDerecho) < DEADBAND) stickDerecho = 0;
-//AQUI ME QUEDE
         double right_norm = stickDerecho / 127.0;
-        double curved = right_norm * right_norm * right_norm * 127.0 + right_norm * 0.3;
-        stickDerecho = curved * 127.0;
+        double curved = right_norm * right_norm * right_norm + right_norm * 0.3;
+        stickDerecho = static_cast<int>(curved * 127.0);
         
         double velocidadLinear = stickIzquierdo * (MAX_SPEED / 127.0);
         double velocidadAngular = stickDerecho * (MAX_TURN_RPM / 127.0);
