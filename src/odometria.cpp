@@ -10,7 +10,7 @@
 double globalHorizontal = 0.0;
 double globalVertical = 0.0;
 
-// Stored in degrees so it matches the PROS IMU API.
+// Stored in degrees.
 double globalTheta = 0.0;
 
 pros::Mutex odometry_mutex;
@@ -27,10 +27,23 @@ pros::IMU imu(10);
 // Motors and controller
 // -----------------------------
 
-pros::MotorGroup leftMotors({-1, 2, -3, -13});
-pros::MotorGroup rightMotors({5, -6, 7, 8});
+pros::MotorGroup leftMotors({
+    -1,
+    2,
+    -3,
+    -13
+});
 
-pros::Controller master(pros::E_CONTROLLER_MASTER);
+pros::MotorGroup rightMotors({
+    5,
+    -6,
+    7,
+    8
+});
+
+pros::Controller master(
+    pros::E_CONTROLLER_MASTER
+);
 
 // -----------------------------
 // Tracking-wheel configuration
@@ -39,7 +52,7 @@ pros::Controller master(pros::E_CONTROLLER_MASTER);
 constexpr double TRACKING_WHEEL_DIAMETER = 3.25;
 
 // PROS Rotation position is measured in centidegrees.
-// One complete rotation is therefore 36000 centidegrees.
+// One complete rotation equals 36000 centidegrees.
 constexpr double CENTIDEGREES_PER_REVOLUTION = 36000.0;
 
 constexpr double TRACKING_WHEEL_CIRCUMFERENCE =
@@ -49,8 +62,7 @@ constexpr double INCHES_PER_CENTIDEGREE =
     TRACKING_WHEEL_CIRCUMFERENCE /
     CENTIDEGREES_PER_REVOLUTION;
 
-// Distance from the tracking wheel to the robot's rotation center.
-// Measure these values on the physical robot.
+// These must be measured on the physical robot.
 constexpr double HORIZONTAL_WHEEL_OFFSET = 1.0;
 constexpr double VERTICAL_WHEEL_OFFSET = 1.25;
 
@@ -66,7 +78,11 @@ static double previousHeadingDegrees = 0.0;
 // Utility functions
 // -----------------------------
 
-double clamp_speed(double value, double minimum, double maximum) {
+double clamp_speed(
+    double value,
+    double minimum,
+    double maximum
+) {
     if (value > maximum) {
         return maximum;
     }
@@ -90,7 +106,11 @@ double normalize_angle_degrees(double angle) {
     return angle;
 }
 
-void get_position(double &x, double &y, double &theta) {
+void get_position(
+    double &x,
+    double &y,
+    double &theta
+) {
     odometry_mutex.take();
 
     x = globalHorizontal;
@@ -100,7 +120,11 @@ void get_position(double &x, double &y, double &theta) {
     odometry_mutex.give();
 }
 
-void reset_odometry(double x, double y, double theta_degrees) {
+void reset_odometry(
+    double x,
+    double y,
+    double theta_degrees
+) {
     odometry_mutex.take();
 
     globalHorizontal = x;
@@ -109,6 +133,10 @@ void reset_odometry(double x, double y, double theta_degrees) {
 
     odometry_mutex.give();
 
+    /*
+     * Store current sensor values as the baseline.
+     * This prevents a large false movement after resetting.
+     */
     previousHorizontalEncoder =
         encoderhorizontal.get_position();
 
@@ -119,7 +147,10 @@ void reset_odometry(double x, double y, double theta_degrees) {
         imu.get_heading();
 }
 
-void set_tank_speed(double left_speed, double right_speed) {
+void set_tank_speed(
+    double left_speed,
+    double right_speed
+) {
     left_speed = clamp_speed(
         left_speed,
         -MAX_MOTOR_RPM,
@@ -148,9 +179,10 @@ void stop_drive() {
 void tareaOdometria(void *param) {
     (void)param;
 
-    encoderhorizontal.reset_position();
-    encodervertical.reset_position();
-
+    /*
+     * Do not reset the encoders or IMU here.
+     * initialize() already calibrated them before this task started.
+     */
     previousHorizontalEncoder =
         encoderhorizontal.get_position();
 
@@ -193,41 +225,73 @@ void tareaOdometria(void *param) {
             );
 
         double deltaHeadingRadians =
-            deltaHeadingDegrees * M_PI / 180.0;
+            deltaHeadingDegrees *
+            M_PI /
+            180.0;
 
-        // Remove the movement caused by the tracking wheels
-        // rotating around the robot during a turn.
+        /*
+         * Remove the movement caused by the tracking wheels
+         * rotating around the robot during a turn.
+         */
         double correctedHorizontal =
             deltaHorizontal -
-            (HORIZONTAL_WHEEL_OFFSET * deltaHeadingRadians);
+            (
+                HORIZONTAL_WHEEL_OFFSET *
+                deltaHeadingRadians
+            );
 
         double correctedVertical =
             deltaVertical +
-            (VERTICAL_WHEEL_OFFSET * deltaHeadingRadians);
+            (
+                VERTICAL_WHEEL_OFFSET *
+                deltaHeadingRadians
+            );
 
         double averageHeadingRadians =
-            (previousHeadingDegrees +
-             (deltaHeadingDegrees / 2.0)) *
-            M_PI / 180.0;
+            (
+                previousHeadingDegrees +
+                (deltaHeadingDegrees / 2.0)
+            ) *
+            M_PI /
+            180.0;
 
-        double cos_heading = std::cos(averageHeadingRadians);
-        double sin_heading = std::sin(averageHeadingRadians);
+        double cos_heading =
+            std::cos(averageHeadingRadians);
 
-        // Transform robot-relative movement into field-relative movement.
+        double sin_heading =
+            std::sin(averageHeadingRadians);
+
+        /*
+         * Convert robot-relative movement to field-relative movement.
+         */
         double fieldDeltaX =
-            (correctedHorizontal * cos_heading) -
-            (correctedVertical * sin_heading);
+            (
+                correctedHorizontal *
+                cos_heading
+            ) -
+            (
+                correctedVertical *
+                sin_heading
+            );
 
         double fieldDeltaY =
-            (correctedHorizontal * sin_heading) +
-            (correctedVertical * cos_heading);
+            (
+                correctedHorizontal *
+                sin_heading
+            ) +
+            (
+                correctedVertical *
+                cos_heading
+            );
 
         odometry_mutex.take();
 
         globalHorizontal += fieldDeltaX;
         globalVertical += fieldDeltaY;
         globalTheta += deltaHeadingDegrees;
-        globalTheta = normalize_angle_degrees(globalTheta);
+
+        globalTheta =
+            normalize_angle_degrees(globalTheta);
 
         odometry_mutex.give();
 
@@ -260,17 +324,23 @@ void tareaPantalla(void *param) {
 
         pros::lcd::set_text(
             0,
-            "X: " + std::to_string(x) + " in"
+            "X: " +
+            std::to_string(x) +
+            " in"
         );
 
         pros::lcd::set_text(
             1,
-            "Y: " + std::to_string(y) + " in"
+            "Y: " +
+            std::to_string(y) +
+            " in"
         );
 
         pros::lcd::set_text(
             2,
-            "Heading: " + std::to_string(theta) + " deg"
+            "Heading: " +
+            std::to_string(theta) +
+            " deg"
         );
 
         pros::delay(100);

@@ -2,115 +2,69 @@
 #define ROBOT_H
 
 #include "main.h"
+
 #include <cmath>
 #include <cstdint>
 
-// -----------------------------
-// Robot constants
-// -----------------------------
-
+// Motor velocity limits.
 constexpr double MAX_MOTOR_RPM = 600.0;
 constexpr double MAX_TURN_RPM = 300.0;
 
-// -----------------------------
-// Simple PID controller
-// -----------------------------
+// Heading-hold settings.
+//
+// Increase HEADING_HOLD_KP if the robot still gradually curves.
+// Decrease it if the robot oscillates from side to side.
+constexpr double HEADING_HOLD_KP = 5.0;
 
-class customPID {
-public:
-    double kp;
-    double ki;
-    double kd;
-    double integral;
-    double previous_error;
-    double max_integral;
+// If correction makes the robot curve worse, change this to -1.0.
+constexpr double HEADING_CORRECTION_SIGN = 1.0;
 
-    customPID(double p, double i, double d, double max_i = 1000.0)
-        : kp(p),
-          ki(i),
-          kd(d),
-          integral(0.0),
-          previous_error(0.0),
-          max_integral(max_i) {}
-
-    double calculate(double error, double dt) {
-        if (dt <= 0.0) {
-            dt = 0.01;
-        }
-
-        integral += error * dt;
-
-        if (integral > max_integral) {
-            integral = max_integral;
-        }
-
-        if (integral < -max_integral) {
-            integral = -max_integral;
-        }
-
-        double derivative = (error - previous_error) / dt;
-        previous_error = error;
-
-        return (kp * error) + (ki * integral) + (kd * derivative);
-    }
-
-    void reset() {
-        integral = 0.0;
-        previous_error = 0.0;
-    }
-};
-
-// -----------------------------
-// Global robot objects
-// -----------------------------
-
+// Global robot position.
 extern double globalHorizontal;
 extern double globalVertical;
 extern double globalTheta;
 
 extern pros::Mutex odometry_mutex;
 
+// Drivetrain.
 extern pros::MotorGroup leftMotors;
 extern pros::MotorGroup rightMotors;
 
+// Controller and sensors.
 extern pros::Controller master;
 extern pros::IMU imu;
 
 extern pros::Rotation encoderhorizontal;
 extern pros::Rotation encodervertical;
 
-// -----------------------------
-// Helper functions
-// -----------------------------
-
+// Utility functions.
 double clamp_speed(double value, double minimum, double maximum);
 
 double normalize_angle_degrees(double angle);
 
 void get_position(double &x, double &y, double &theta);
 
-void reset_odometry(double x = 0.0,
-                    double y = 0.0,
-                    double theta_degrees = 0.0);
+void reset_odometry(
+    double x = 0.0,
+    double y = 0.0,
+    double theta_degrees = 0.0
+);
 
 void set_tank_speed(double left_speed, double right_speed);
 
 void stop_drive();
 
-// -----------------------------
-// Background tasks
-// -----------------------------
-
+// Background tasks.
 void tareaOdometria(void *param);
 void tareaPantalla(void *param);
 
-// -----------------------------
-// Autonomous functions
-// -----------------------------
-
+// Autonomous functions.
 void girarAngulo(double objetivoTheta);
-void moverAPunto(double objetivoX,
-                 double objetivoY,
-                 double objetivoTheta);
+
+void moverAPunto(
+    double objetivoX,
+    double objetivoY,
+    double objetivoTheta
+);
 
 #endif

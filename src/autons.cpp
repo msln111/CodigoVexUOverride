@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // -----------------------------
-// Turn the robot to a heading
+// Turn to a heading
 // -----------------------------
 
 void girarAngulo(double objetivoTheta) {
@@ -12,11 +12,14 @@ void girarAngulo(double objetivoTheta) {
     constexpr double MAX_TURN_SPEED = 300.0;
     constexpr uint32_t TIMEOUT_MS = 4000;
 
-    const double kP = 4.0;
+    constexpr double TURN_KP = 4.0;
 
     uint32_t start_time = pros::millis();
 
-    while (pros::millis() - start_time < TIMEOUT_MS) {
+    while (
+        pros::millis() - start_time <
+        TIMEOUT_MS
+    ) {
         double current_x;
         double current_y;
         double current_theta;
@@ -36,7 +39,8 @@ void girarAngulo(double objetivoTheta) {
             break;
         }
 
-        double turn_speed = kP * error;
+        double turn_speed =
+            TURN_KP * error;
 
         turn_speed = clamp_speed(
             turn_speed,
@@ -44,7 +48,10 @@ void girarAngulo(double objetivoTheta) {
             MAX_TURN_SPEED
         );
 
-        set_tank_speed(-turn_speed, turn_speed);
+        set_tank_speed(
+            -turn_speed,
+            turn_speed
+        );
 
         pros::delay(20);
     }
@@ -62,17 +69,19 @@ void moverAPunto(
     double objetivoTheta
 ) {
     constexpr double POSITION_TOLERANCE = 1.0;
-    constexpr double ANGLE_TOLERANCE = 3.0;
     constexpr double MAX_DRIVE_SPEED = 450.0;
     constexpr double MAX_TURN_SPEED = 250.0;
     constexpr uint32_t TIMEOUT_MS = 8000;
 
-    const double distance_kP = 12.0;
-    const double angle_kP = 4.0;
+    constexpr double DISTANCE_KP = 12.0;
+    constexpr double ANGLE_KP = 4.0;
 
     uint32_t start_time = pros::millis();
 
-    while (pros::millis() - start_time < TIMEOUT_MS) {
+    while (
+        pros::millis() - start_time <
+        TIMEOUT_MS
+    ) {
         double actualX;
         double actualY;
         double actualTheta;
@@ -83,8 +92,11 @@ void moverAPunto(
             actualTheta
         );
 
-        double errorX = objetivoX - actualX;
-        double errorY = objetivoY - actualY;
+        double errorX =
+            objetivoX - actualX;
+
+        double errorY =
+            objetivoY - actualY;
 
         double distance_error =
             std::sqrt(
@@ -92,24 +104,32 @@ void moverAPunto(
                 (errorY * errorY)
             );
 
-        if (distance_error <= POSITION_TOLERANCE) {
+        if (
+            distance_error <=
+            POSITION_TOLERANCE
+        ) {
             break;
         }
 
-        // Direction from the robot to the target in field coordinates.
         double target_angle =
             std::atan2(errorY, errorX) *
-            180.0 / M_PI;
+            180.0 /
+            M_PI;
 
         double heading_error =
             normalize_angle_degrees(
                 target_angle - actualTheta
             );
 
-        // Drive more slowly when the robot is not facing the target.
+        /*
+         * Drive forward only when the robot is generally facing
+         * the target. This prevents excessive sideways driving.
+         */
         double heading_scale =
             std::cos(
-                heading_error * M_PI / 180.0
+                heading_error *
+                M_PI /
+                180.0
             );
 
         if (heading_scale < 0.0) {
@@ -117,12 +137,13 @@ void moverAPunto(
         }
 
         double forward_speed =
-            distance_kP *
+            DISTANCE_KP *
             distance_error *
             heading_scale;
 
         double turn_speed =
-            angle_kP * heading_error;
+            ANGLE_KP *
+            heading_error;
 
         forward_speed = clamp_speed(
             forward_speed,
@@ -137,12 +158,17 @@ void moverAPunto(
         );
 
         double left_speed =
-            forward_speed - turn_speed;
+            forward_speed -
+            turn_speed;
 
         double right_speed =
-            forward_speed + turn_speed;
+            forward_speed +
+            turn_speed;
 
-        set_tank_speed(left_speed, right_speed);
+        set_tank_speed(
+            left_speed,
+            right_speed
+        );
 
         pros::delay(20);
     }
@@ -156,14 +182,40 @@ void moverAPunto(
 // -----------------------------
 // Autonomous routine
 // -----------------------------
+//
+// This must be the only autonomous()
+// definition in the entire project.
 
 void autonomous() {
-    reset_odometry(0.0, 0.0, 0.0);
+    reset_odometry(
+        0.0,
+        0.0,
+        0.0
+    );
 
-    moverAPunto(24.0, 0.0, 0.0);
-    moverAPunto(24.0, 24.0, 90.0);
-    moverAPunto(0.0, 24.0, 180.0);
-    moverAPunto(0.0, 0.0, 270.0);
+    moverAPunto(
+        24.0,
+        0.0,
+        0.0
+    );
+
+    moverAPunto(
+        24.0,
+        24.0,
+        90.0
+    );
+
+    moverAPunto(
+        0.0,
+        24.0,
+        180.0
+    );
+
+    moverAPunto(
+        0.0,
+        0.0,
+        270.0
+    );
 
     stop_drive();
 }
