@@ -1,94 +1,169 @@
 #include "robot.h"
-#include "EZ-Template/api.hpp"
 
+#include <cmath>
+#include <cstdint>
 
-void girarAngulo(double objetivoTheta){
-    double anguloActual = imu.get_heading();
-    double error = objetivoTheta - anguloActual;
+// -----------------------------
+// Turn the robot to a heading
+// -----------------------------
 
-    while (error > 180.0) error -= 360.0;
-    while (error < -180.0) error += 360.0;
+void girarAngulo(double objetivoTheta) {
+    constexpr double ANGLE_TOLERANCE = 2.0;
+    constexpr double MAX_TURN_SPEED = 300.0;
+    constexpr uint32_t TIMEOUT_MS = 4000;
 
-    const double ToleraciaAngulo = 2.0; // Tolerancia en grados
-    customPID turnPID(0.8, 0.001, 0.2, 300);
-    customPID anglePID(0.8, 0.001, 0.2, 300);
+    const double kP = 4.0;
 
-    uint32_t last_time = pros::millis();
-    while (fabs(error) > ToleraciaAngulo) {
-        uint32_t now = pros::millis();
-        double dt = (now - last_time) / 1000.0; // Convertir a segundos
-        if (dt <= 0) dt = 0.01; // Evitar división
+    uint32_t start_time = pros::millis();
 
-        double anguloActual = imu.get_heading();
-        error = objetivoTheta - anguloActual;
-        while (error > 180.0) error -= 360.0;
-        while (error < -180.0) error += 360.0;
-        
-        double ajustePID = turnPID.calculate(error, dt);
+    while (pros::millis() - start_time < TIMEOUT_MS) {
+        double current_x;
+        double current_y;
+        double current_theta;
 
-        double MAX_TURN_RPM = 300.0; // Velocidad máxima de giro en RPM
-        if (ajustePID > MAX_TURN_RPM) ajustePID = MAX_TURN_RPM;
-        if (ajustePID < -MAX_TURN_RPM) ajustePID = -MAX_TURN_RPM;
+        get_position(
+            current_x,
+            current_y,
+            current_theta
+        );
 
-        set_tank_speed(-ajustePID, ajustePID); // Girar el robot
+        double error =
+            normalize_angle_degrees(
+                objetivoTheta - current_theta
+            );
 
-        last_time = now;
-        pros::delay(10);
+        if (std::fabs(error) <= ANGLE_TOLERANCE) {
+            break;
+        }
+
+        double turn_speed = kP * error;
+
+        turn_speed = clamp_speed(
+            turn_speed,
+            -MAX_TURN_SPEED,
+            MAX_TURN_SPEED
+        );
+
+        set_tank_speed(-turn_speed, turn_speed);
+
+        pros::delay(20);
     }
-    set_tank_speed(0, 0); // Detener el robot después de girar
-    anglePID.reset(); // Reiniciar el PID después de completar el giro
+
+    stop_drive();
 }
 
-void moverAPunto(double objetivoX, double objetivoY, double objetivoTheta){
-    double actualX, actualY, actualTheta;
-        get_position(actualX, actualY, actualTheta);
+// -----------------------------
+// Move to a field coordinate
+// -----------------------------
+
+void moverAPunto(
+    double objetivoX,
+    double objetivoY,
+    double objetivoTheta
+) {
+    constexpr double POSITION_TOLERANCE = 1.0;
+    constexpr double ANGLE_TOLERANCE = 3.0;
+    constexpr double MAX_DRIVE_SPEED = 450.0;
+    constexpr double MAX_TURN_SPEED = 250.0;
+    constexpr uint32_t TIMEOUT_MS = 8000;
+
+    const double distance_kP = 12.0;
+    const double angle_kP = 4.0;
+
+    uint32_t start_time = pros::millis();
+
+    while (pros::millis() - start_time < TIMEOUT_MS) {
+        double actualX;
+        double actualY;
+        double actualTheta;
+
+        get_position(
+            actualX,
+            actualY,
+            actualTheta
+        );
+
         double errorX = objetivoX - actualX;
         double errorY = objetivoY - actualY;
-        double distanciaError = sqrt(errorX * errorX + errorY * errorY);
-        if (distanciaError < 1.0) return;
 
-        customPID distPID(0.5, 0.0, 0.1, 500); // Ajusta los valores de kp, ki y kd según sea necesario
-        customPID anglePID(0.8, 0.001, 0.2, 300);
-        const double POSICION_TOLERANCIA = 1.0; // Tolerancia en pulgadas
+        double distance_error =
+            std::sqrt(
+                (errorX * errorX) +
+                (errorY * errorY)
+            );
 
-        uint32_t last_time = pros::millis();
-        while (true) {
-            get_position(actualX, actualY, actualTheta);
-            double errorDist = sqrt(pow(objetivoX - actualX, 2) + pow(objetivoY - actualY, 2));
-            if (errorDist < POSICION_TOLERANCIA) break;
-
-            double anguloDeseado = atan2(objetivoY - actualY, objetivoX - actualX)*180.0/M_PI; // Convertir a grados
-            double errorAngulo = anguloDeseado - imu.get_heading();
-            while (errorAngulo > 180.0) errorAngulo -= 360.0;
-            while (errorAngulo < -180.0) errorAngulo += 360.0;
-
-            uint32_t now = pros::millis();
-            double dt = (now - last_time) / 1000.0; // Convertir a segundos
-            if (dt <= 0) dt = 0.01; // Evitar división por cero
-            double ajusteDist = distPID.calculate(errorDist, dt);
-            double ajusteAngulo = anglePID.calculate(errorAngulo, dt);
-
-            double velocidadIzquierda = ajusteDist - ajusteAngulo;
-            double velocidadDerecha = ajusteDist + ajusteAngulo;
-
-            double MAX_SPEED = 600.0; // Velocidad máxima del robot en RPM
-            if (velocidadIzquierda > MAX_SPEED) velocidadIzquierda = MAX_SPEED;
-            if (velocidadIzquierda < -MAX_SPEED) velocidadIzquierda = -MAX_SPEED;
-            if (velocidadDerecha > MAX_SPEED) velocidadDerecha = MAX_SPEED; 
-            if (velocidadDerecha < -MAX_SPEED) velocidadDerecha = -MAX_SPEED;
-
-            set_tank_speed(velocidadIzquierda, velocidadDerecha);
-            last_time = now;
-            pros::delay(10); // Esperar un tiempo antes de la siguiente iteración
+        if (distance_error <= POSITION_TOLERANCE) {
+            break;
         }
-            set_tank_speed(0, 0); // Detener el robot
-            distPID.reset(); // Reiniciar el PID de distancia
-            anglePID.reset(); // Reiniciar el PID de ángulo
+
+        // Direction from the robot to the target in field coordinates.
+        double target_angle =
+            std::atan2(errorY, errorX) *
+            180.0 / M_PI;
+
+        double heading_error =
+            normalize_angle_degrees(
+                target_angle - actualTheta
+            );
+
+        // Drive more slowly when the robot is not facing the target.
+        double heading_scale =
+            std::cos(
+                heading_error * M_PI / 180.0
+            );
+
+        if (heading_scale < 0.0) {
+            heading_scale = 0.0;
         }
+
+        double forward_speed =
+            distance_kP *
+            distance_error *
+            heading_scale;
+
+        double turn_speed =
+            angle_kP * heading_error;
+
+        forward_speed = clamp_speed(
+            forward_speed,
+            -MAX_DRIVE_SPEED,
+            MAX_DRIVE_SPEED
+        );
+
+        turn_speed = clamp_speed(
+            turn_speed,
+            -MAX_TURN_SPEED,
+            MAX_TURN_SPEED
+        );
+
+        double left_speed =
+            forward_speed - turn_speed;
+
+        double right_speed =
+            forward_speed + turn_speed;
+
+        set_tank_speed(left_speed, right_speed);
+
+        pros::delay(20);
+    }
+
+    stop_drive();
+
+    // Rotate to the requested final heading.
+    girarAngulo(objetivoTheta);
+}
+
+// -----------------------------
+// Autonomous routine
+// -----------------------------
 
 void autonomous() {
-moverAPunto(24.0, 0.0, 0.0); // Mover a la posición (24, 0) con orientación 0 radianes
-moverAPunto(24.0, 24.0, 0.0); // Mover de regreso a la posición (24, 24) con orientación 0 radianes
-moverAPunto(0.0, 24.0, 0.0); // Mover de regreso a la posición (0, 24) con orientación 0 radianes
-moverAPunto(0.0, 0.0, 0.0); // Mover de regreso a la posición (0, 0) con orientación 0 radianes
+    reset_odometry(0.0, 0.0, 0.0);
+
+    moverAPunto(24.0, 0.0, 0.0);
+    moverAPunto(24.0, 24.0, 90.0);
+    moverAPunto(0.0, 24.0, 180.0);
+    moverAPunto(0.0, 0.0, 270.0);
+
+    stop_drive();
 }
