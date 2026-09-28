@@ -34,7 +34,7 @@ pros::Controller master(
 );
 
 // Tracking wheel configuration.
-constexpr double TRACKING_WHEEL_DIAMETER = 3.25;
+constexpr double TRACKING_WHEEL_DIAMETER = 2.75;
 constexpr double CENTIDEGREES_PER_REVOLUTION = 36000.0;
 constexpr double TRACKING_WHEEL_CIRCUMFERENCE =
     M_PI * TRACKING_WHEEL_DIAMETER;
@@ -55,6 +55,26 @@ constexpr double INCHES_PER_CENTIDEGREE =
  */
 constexpr pros::Rotation &ENCODER_FOR_X = encodervertical;
 constexpr pros::Rotation &ENCODER_FOR_Y = encoderhorizontal;
+
+// ========================
+// GRAVITY CENTERS / OFFSETS
+// ========================
+//
+// These are the distances from each tracking wheel to the robot's
+// center of rotation. Measure these on your physical robot.
+//
+// WHEEL_FORWARD_OFFSET = Distance from vertical encoder to center (inches)
+//   Positive = encoder is in front of center
+//   Negative = encoder is behind center
+//
+// WHEEL_SIDE_OFFSET = Distance from horizontal encoder to center (inches)
+//   Positive = encoder is to the left of center
+//   Negative = encoder is to the right of center
+//
+// Change these values to match your robot's geometry:
+
+constexpr double WHEEL_FORWARD_OFFSET = 0.625;   // Front-to-back distance
+constexpr double WHEEL_SIDE_OFFSET = 3.75;     // Left-to-right distance
 
 // Previous sensor readings.
 static double previousEncoderX = 0.0;
@@ -208,19 +228,25 @@ void tareaOdometria(void *param) {
                 previousHeadingDegrees
             );
 
+        double deltaHeadingRadians =
+            deltaHeadingDegrees *
+            M_PI /
+            180.0;
+
         /*
-         * SIMPLIFIED: For now, ignore arc correction.
+         * Arc correction: When the robot rotates, the tracking wheels
+         * move in an arc around the center of rotation.
          *
-         * The encoders measure movement relative to the ROBOT,
-         * but we've defined ENCODER_FOR_X and ENCODER_FOR_Y
-         * to always point in fixed FIELD directions.
-         *
-         * So if:
-         *   - encodervertical measures forward/backward motion
-         *   - encoderhorizontal measures left/right motion
-         *
-         * Then we need to rotate these to the field frame.
+         * Remove this arc from the raw encoder readings to get
+         * the true motion of the robot center.
          */
+        double correctedDeltaX =
+            rawDeltaX -
+            (WHEEL_SIDE_OFFSET * deltaHeadingRadians);
+
+        double correctedDeltaY =
+            rawDeltaY +
+            (WHEEL_FORWARD_OFFSET * deltaHeadingRadians);
 
         double headingRadians =
             currentHeadingDegrees *
@@ -237,20 +263,20 @@ void tareaOdometria(void *param) {
          * Transform encoder deltas from robot-local to field-global.
          *
          * The encoders are mounted on the robot, so:
-         *   rawDeltaX = movement in the robot's "forward" direction
-         *   rawDeltaY = movement in the robot's "left" direction
+         *   correctedDeltaX = movement in the robot's "forward" direction
+         *   correctedDeltaY = movement in the robot's "left" direction
          *
          * To convert to field coordinates:
          *   X_field = X_robot * cos(theta) - Y_robot * sin(theta)
          *   Y_field = X_robot * sin(theta) + Y_robot * cos(theta)
          */
         double fieldDeltaX =
-            (rawDeltaX * cos_heading) -
-            (rawDeltaY * sin_heading);
+            (correctedDeltaX * cos_heading) -
+            (correctedDeltaY * sin_heading);
 
         double fieldDeltaY =
-            (rawDeltaX * sin_heading) +
-            (rawDeltaY * cos_heading);
+            (correctedDeltaX * sin_heading) +
+            (correctedDeltaY * cos_heading);
 
         // Update global position.
         odometry_mutex.take();

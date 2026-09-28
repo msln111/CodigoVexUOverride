@@ -201,21 +201,8 @@ void autonomous() {
 
     moverAPunto(
         24.0,
-        24.0,
+        0,
         90.0
     );
-
-    moverAPunto(
-        0.0,
-        24.0,
-        180.0
-    );
-
-    moverAPunto(
-        0.0,
-        0.0,
-        270.0
-    );
-
     stop_drive();
 }
