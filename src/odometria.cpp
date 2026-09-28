@@ -7,11 +7,10 @@
 // GLOBAL FIXED FIELD COORDINATE SYSTEM
 // ========================================
 //
-// X = Always points the same direction on the field (e.g., toward goal line)
-// Y = Always perpendicular to X on the field (e.g., toward sideline)
+// X = Always points the same direction on the field
+// Y = Always perpendicular to X on the field
 // Theta = Robot's heading relative to the X axis
 //
-// These coordinates do NOT change when the robot turns.
 // ========================================
 
 double globalX = 0.0;
@@ -26,19 +25,9 @@ pros::Rotation encodervertical(12);
 pros::IMU imu(10);
 
 // Drivetrain motors.
-pros::MotorGroup leftMotors({
-    -1,
-    2,
-    -3,
-    -13
-});
+pros::MotorGroup leftMotors({-1, 2, -3, -13});
 
-pros::MotorGroup rightMotors({
-    5,
-    -6,
-    7,
-    8
-});
+pros::MotorGroup rightMotors({5, 6, -7, 8});
 
 pros::Controller master(
     pros::E_CONTROLLER_MASTER
@@ -54,24 +43,18 @@ constexpr double INCHES_PER_CENTIDEGREE =
     CENTIDEGREES_PER_REVOLUTION;
 
 /*
- * Define which encoder measures movement along which FIELD axis.
+ * CRITICAL: Define which encoder measures which FIELD axis.
  *
- * If your robot is:
- *   - Vertical encoder on the front/back of the robot
- *   - Horizontal encoder on the left/right of the robot
+ * Test this:
+ * 1. Robot at (0, 0) facing 0°
+ * 2. Push robot forward in the +X direction
+ * 3. Only encodervertical should change
  *
- * Then set:
- *   ENCODER_FOR_X = encodervertical (points toward field X direction)
- *   ENCODER_FOR_Y = encoderhorizontal (points toward field Y direction)
- *
- * If it's the opposite physical layout, swap them.
+ * If encodervertical increases when you push in +X → ENCODER_FOR_X = encodervertical ✓
+ * If encoderhorizontal increases when you push in +X → swap them
  */
 constexpr pros::Rotation &ENCODER_FOR_X = encodervertical;
 constexpr pros::Rotation &ENCODER_FOR_Y = encoderhorizontal;
-
-// Distance from each tracking wheel to the robot center (for arc correction).
-constexpr double WHEEL_FORWARD_OFFSET = 1.0;
-constexpr double WHEEL_SIDE_OFFSET = 1.25;
 
 // Previous sensor readings.
 static double previousEncoderX = 0.0;
@@ -199,7 +182,7 @@ void tareaOdometria(void *param) {
         double currentHeadingDegrees =
             imu.get_heading();
 
-        // Calculate change in encoder counts.
+        // Calculate change in encoder counts (centidegrees).
         double deltaEncoderX =
             currentEncoderX -
             previousEncoderX;
@@ -208,7 +191,8 @@ void tareaOdometria(void *param) {
             currentEncoderY -
             previousEncoderY;
 
-        // Convert to inches.
+        // Convert encoder counts to inches.
+        // This is movement along the FIELD axes, not robot-local.
         double rawDeltaX =
             deltaEncoderX *
             INCHES_PER_CENTIDEGREE;
@@ -217,80 +201,56 @@ void tareaOdometria(void *param) {
             deltaEncoderY *
             INCHES_PER_CENTIDEGREE;
 
-        // Calculate change in heading (degrees → radians).
+        // Calculate change in heading.
         double deltaHeadingDegrees =
             normalize_angle_degrees(
                 currentHeadingDegrees -
                 previousHeadingDegrees
             );
 
-        double deltaHeadingRadians =
-            deltaHeadingDegrees *
-            M_PI /
-            180.0;
-
         /*
-         * When the robot rotates, the tracking wheels move in an arc.
-         * Remove this arc movement from the raw encoder readings.
+         * SIMPLIFIED: For now, ignore arc correction.
          *
-         * These corrections depend on where the encoders are physically mounted.
-         * You may need to adjust the signs if the robot's position drifts
-         * when turning in place.
+         * The encoders measure movement relative to the ROBOT,
+         * but we've defined ENCODER_FOR_X and ENCODER_FOR_Y
+         * to always point in fixed FIELD directions.
+         *
+         * So if:
+         *   - encodervertical measures forward/backward motion
+         *   - encoderhorizontal measures left/right motion
+         *
+         * Then we need to rotate these to the field frame.
          */
-        double correctedDeltaX =
-            rawDeltaX -
-            (WHEEL_SIDE_OFFSET * deltaHeadingRadians);
 
-        double correctedDeltaY =
-            rawDeltaY +
-            (WHEEL_FORWARD_OFFSET * deltaHeadingRadians);
-
-        /*
-         * KEY INSIGHT:
-         *
-         * These corrected deltas are now movement in the ROBOT'S LOCAL frame:
-         * - correctedDeltaX = movement along the robot's current heading
-         * - correctedDeltaY = movement perpendicular to the robot's heading
-         *
-         * We need to transform them to the FIELD frame using the average heading.
-         */
-        double averageHeadingDegrees =
-            previousHeadingDegrees +
-            (deltaHeadingDegrees / 2.0);
-
-        double averageHeadingRadians =
-            averageHeadingDegrees *
+        double headingRadians =
+            currentHeadingDegrees *
             M_PI /
             180.0;
 
         double cos_heading =
-            std::cos(averageHeadingRadians);
+            std::cos(headingRadians);
 
         double sin_heading =
-            std::sin(averageHeadingRadians);
+            std::sin(headingRadians);
 
         /*
-         * Transform from robot-local to field-global.
+         * Transform encoder deltas from robot-local to field-global.
          *
-         * Robot-local:
-         *   X_robot = forward along robot heading
-         *   Y_robot = left perpendicular to robot heading
+         * The encoders are mounted on the robot, so:
+         *   rawDeltaX = movement in the robot's "forward" direction
+         *   rawDeltaY = movement in the robot's "left" direction
          *
-         * Field-global:
-         *   X_field = always the same direction
-         *   Y_field = always perpendicular to X_field
-         *
-         * Rotation matrix:
+         * To convert to field coordinates:
          *   X_field = X_robot * cos(theta) - Y_robot * sin(theta)
          *   Y_field = X_robot * sin(theta) + Y_robot * cos(theta)
          */
         double fieldDeltaX =
-            (correctedDeltaX * cos_heading) -
-            (correctedDeltaY * sin_heading);
+            (rawDeltaX * cos_heading) -
+            (rawDeltaY * sin_heading);
 
         double fieldDeltaY =
-            (correctedDeltaX * sin_heading) +
-            (correctedDeltaY * cos_heading);
+            (rawDeltaX * sin_heading) +
+            (rawDeltaY * cos_heading);
 
         // Update global position.
         odometry_mutex.take();
