@@ -3,30 +3,29 @@
 #include <cmath>
 #include <string>
 
-// -----------------------------
-// Global position
-// -----------------------------
+// ========================================
+// GLOBAL FIXED FIELD COORDINATE SYSTEM
+// ========================================
+//
+// X = Always points the same direction on the field (e.g., toward goal line)
+// Y = Always perpendicular to X on the field (e.g., toward sideline)
+// Theta = Robot's heading relative to the X axis
+//
+// These coordinates do NOT change when the robot turns.
+// ========================================
 
-double globalHorizontal = 0.0;
-double globalVertical = 0.0;
-
-// Stored in degrees.
+double globalX = 0.0;
+double globalY = 0.0;
 double globalTheta = 0.0;
 
 pros::Mutex odometry_mutex;
 
-// -----------------------------
-// Sensors
-// -----------------------------
-
+// Tracking wheel encoders.
 pros::Rotation encoderhorizontal(11);
 pros::Rotation encodervertical(12);
 pros::IMU imu(10);
 
-// -----------------------------
-// Motors and controller
-// -----------------------------
-
+// Drivetrain motors.
 pros::MotorGroup leftMotors({
     -1,
     2,
@@ -45,38 +44,43 @@ pros::Controller master(
     pros::E_CONTROLLER_MASTER
 );
 
-// -----------------------------
-// Tracking-wheel configuration
-// -----------------------------
-
+// Tracking wheel configuration.
 constexpr double TRACKING_WHEEL_DIAMETER = 3.25;
-
-// PROS Rotation position is measured in centidegrees.
-// One complete rotation equals 36000 centidegrees.
 constexpr double CENTIDEGREES_PER_REVOLUTION = 36000.0;
-
 constexpr double TRACKING_WHEEL_CIRCUMFERENCE =
     M_PI * TRACKING_WHEEL_DIAMETER;
-
 constexpr double INCHES_PER_CENTIDEGREE =
     TRACKING_WHEEL_CIRCUMFERENCE /
     CENTIDEGREES_PER_REVOLUTION;
 
-// These must be measured on the physical robot.
-constexpr double HORIZONTAL_WHEEL_OFFSET = 1.0;
-constexpr double VERTICAL_WHEEL_OFFSET = 1.25;
+/*
+ * Define which encoder measures movement along which FIELD axis.
+ *
+ * If your robot is:
+ *   - Vertical encoder on the front/back of the robot
+ *   - Horizontal encoder on the left/right of the robot
+ *
+ * Then set:
+ *   ENCODER_FOR_X = encodervertical (points toward field X direction)
+ *   ENCODER_FOR_Y = encoderhorizontal (points toward field Y direction)
+ *
+ * If it's the opposite physical layout, swap them.
+ */
+constexpr pros::Rotation &ENCODER_FOR_X = encodervertical;
+constexpr pros::Rotation &ENCODER_FOR_Y = encoderhorizontal;
 
-// -----------------------------
-// Previous sensor values
-// -----------------------------
+// Distance from each tracking wheel to the robot center (for arc correction).
+constexpr double WHEEL_FORWARD_OFFSET = 1.0;
+constexpr double WHEEL_SIDE_OFFSET = 1.25;
 
-static double previousHorizontalEncoder = 0.0;
-static double previousVerticalEncoder = 0.0;
+// Previous sensor readings.
+static double previousEncoderX = 0.0;
+static double previousEncoderY = 0.0;
 static double previousHeadingDegrees = 0.0;
 
-// -----------------------------
+// ========================
 // Utility functions
-// -----------------------------
+// ========================
 
 double clamp_speed(
     double value,
@@ -113,8 +117,8 @@ void get_position(
 ) {
     odometry_mutex.take();
 
-    x = globalHorizontal;
-    y = globalVertical;
+    x = globalX;
+    y = globalY;
     theta = globalTheta;
 
     odometry_mutex.give();
@@ -127,21 +131,17 @@ void reset_odometry(
 ) {
     odometry_mutex.take();
 
-    globalHorizontal = x;
-    globalVertical = y;
+    globalX = x;
+    globalY = y;
     globalTheta = theta_degrees;
 
     odometry_mutex.give();
 
-    /*
-     * Store current sensor values as the baseline.
-     * This prevents a large false movement after resetting.
-     */
-    previousHorizontalEncoder =
-        encoderhorizontal.get_position();
+    previousEncoderX =
+        ENCODER_FOR_X.get_position();
 
-    previousVerticalEncoder =
-        encodervertical.get_position();
+    previousEncoderY =
+        ENCODER_FOR_Y.get_position();
 
     previousHeadingDegrees =
         imu.get_heading();
@@ -172,52 +172,52 @@ void stop_drive() {
     rightMotors.move_voltage(0);
 }
 
-// -----------------------------
+// ========================
 // Odometry task
-// -----------------------------
+// ========================
 
 void tareaOdometria(void *param) {
     (void)param;
 
-    /*
-     * Do not reset the encoders or IMU here.
-     * initialize() already calibrated them before this task started.
-     */
-    previousHorizontalEncoder =
-        encoderhorizontal.get_position();
+    previousEncoderX =
+        ENCODER_FOR_X.get_position();
 
-    previousVerticalEncoder =
-        encodervertical.get_position();
+    previousEncoderY =
+        ENCODER_FOR_Y.get_position();
 
     previousHeadingDegrees =
         imu.get_heading();
 
     while (true) {
-        double currentHorizontalEncoder =
-            encoderhorizontal.get_position();
+        // Read current encoder positions.
+        double currentEncoderX =
+            ENCODER_FOR_X.get_position();
 
-        double currentVerticalEncoder =
-            encodervertical.get_position();
+        double currentEncoderY =
+            ENCODER_FOR_Y.get_position();
 
         double currentHeadingDegrees =
             imu.get_heading();
 
-        double deltaHorizontalEncoder =
-            currentHorizontalEncoder -
-            previousHorizontalEncoder;
+        // Calculate change in encoder counts.
+        double deltaEncoderX =
+            currentEncoderX -
+            previousEncoderX;
 
-        double deltaVerticalEncoder =
-            currentVerticalEncoder -
-            previousVerticalEncoder;
+        double deltaEncoderY =
+            currentEncoderY -
+            previousEncoderY;
 
-        double deltaHorizontal =
-            deltaHorizontalEncoder *
+        // Convert to inches.
+        double rawDeltaX =
+            deltaEncoderX *
             INCHES_PER_CENTIDEGREE;
 
-        double deltaVertical =
-            deltaVerticalEncoder *
+        double rawDeltaY =
+            deltaEncoderY *
             INCHES_PER_CENTIDEGREE;
 
+        // Calculate change in heading (degrees → radians).
         double deltaHeadingDegrees =
             normalize_angle_degrees(
                 currentHeadingDegrees -
@@ -230,28 +230,36 @@ void tareaOdometria(void *param) {
             180.0;
 
         /*
-         * Remove the movement caused by the tracking wheels
-         * rotating around the robot during a turn.
+         * When the robot rotates, the tracking wheels move in an arc.
+         * Remove this arc movement from the raw encoder readings.
+         *
+         * These corrections depend on where the encoders are physically mounted.
+         * You may need to adjust the signs if the robot's position drifts
+         * when turning in place.
          */
-        double correctedHorizontal =
-            deltaHorizontal -
-            (
-                HORIZONTAL_WHEEL_OFFSET *
-                deltaHeadingRadians
-            );
+        double correctedDeltaX =
+            rawDeltaX -
+            (WHEEL_SIDE_OFFSET * deltaHeadingRadians);
 
-        double correctedVertical =
-            deltaVertical +
-            (
-                VERTICAL_WHEEL_OFFSET *
-                deltaHeadingRadians
-            );
+        double correctedDeltaY =
+            rawDeltaY +
+            (WHEEL_FORWARD_OFFSET * deltaHeadingRadians);
+
+        /*
+         * KEY INSIGHT:
+         *
+         * These corrected deltas are now movement in the ROBOT'S LOCAL frame:
+         * - correctedDeltaX = movement along the robot's current heading
+         * - correctedDeltaY = movement perpendicular to the robot's heading
+         *
+         * We need to transform them to the FIELD frame using the average heading.
+         */
+        double averageHeadingDegrees =
+            previousHeadingDegrees +
+            (deltaHeadingDegrees / 2.0);
 
         double averageHeadingRadians =
-            (
-                previousHeadingDegrees +
-                (deltaHeadingDegrees / 2.0)
-            ) *
+            averageHeadingDegrees *
             M_PI /
             180.0;
 
@@ -262,32 +270,33 @@ void tareaOdometria(void *param) {
             std::sin(averageHeadingRadians);
 
         /*
-         * Convert robot-relative movement to field-relative movement.
+         * Transform from robot-local to field-global.
+         *
+         * Robot-local:
+         *   X_robot = forward along robot heading
+         *   Y_robot = left perpendicular to robot heading
+         *
+         * Field-global:
+         *   X_field = always the same direction
+         *   Y_field = always perpendicular to X_field
+         *
+         * Rotation matrix:
+         *   X_field = X_robot * cos(theta) - Y_robot * sin(theta)
+         *   Y_field = X_robot * sin(theta) + Y_robot * cos(theta)
          */
         double fieldDeltaX =
-            (
-                correctedHorizontal *
-                cos_heading
-            ) -
-            (
-                correctedVertical *
-                sin_heading
-            );
+            (correctedDeltaX * cos_heading) -
+            (correctedDeltaY * sin_heading);
 
         double fieldDeltaY =
-            (
-                correctedHorizontal *
-                sin_heading
-            ) +
-            (
-                correctedVertical *
-                cos_heading
-            );
+            (correctedDeltaX * sin_heading) +
+            (correctedDeltaY * cos_heading);
 
+        // Update global position.
         odometry_mutex.take();
 
-        globalHorizontal += fieldDeltaX;
-        globalVertical += fieldDeltaY;
+        globalX += fieldDeltaX;
+        globalY += fieldDeltaY;
         globalTheta += deltaHeadingDegrees;
 
         globalTheta =
@@ -295,22 +304,18 @@ void tareaOdometria(void *param) {
 
         odometry_mutex.give();
 
-        previousHorizontalEncoder =
-            currentHorizontalEncoder;
-
-        previousVerticalEncoder =
-            currentVerticalEncoder;
-
-        previousHeadingDegrees =
-            currentHeadingDegrees;
+        // Store current readings for next cycle.
+        previousEncoderX = currentEncoderX;
+        previousEncoderY = currentEncoderY;
+        previousHeadingDegrees = currentHeadingDegrees;
 
         pros::delay(10);
     }
 }
 
-// -----------------------------
+// ========================
 // LCD display task
-// -----------------------------
+// ========================
 
 void tareaPantalla(void *param) {
     (void)param;
