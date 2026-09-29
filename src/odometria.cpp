@@ -21,8 +21,19 @@ pros::Rotation encoderhorizontal(11);
 pros::Rotation encodervertical(12);
 pros::IMU imu(10);
 
-pros::MotorGroup leftMotors({-1, 2, -3, -13});
-pros::MotorGroup rightMotors({5, 6, -7, 8});
+pros::MotorGroup leftMotors({
+    -1,
+    2,
+    -3,
+    -13
+});
+
+pros::MotorGroup rightMotors({
+    5,
+    6,
+    -7,
+    8
+});
 
 pros::Controller master(
     pros::E_CONTROLLER_MASTER
@@ -31,23 +42,12 @@ pros::Controller master(
 // --------------------------------------------------
 // Tracking-wheel calibration
 // --------------------------------------------------
-//
-// The current code maps:
-//
-//   encodervertical   -> robot forward/backward movement -> X
-//   encoderhorizontal -> robot left/right movement      -> Y
-//
-// Measure the real diameter of each tracking wheel.
-// Do not use the drive-wheel diameter here.
-//
-// PERSONALIZE THESE TWO VALUES.
-//
 
 constexpr double VERTICAL_WHEEL_DIAMETER =
-    2.75;  // PERSONALIZE: diameter of encodervertical wheel, inches
+    2.75;
 
 constexpr double HORIZONTAL_WHEEL_DIAMETER =
-    2;  // PERSONALIZE: diameter of encoderhorizontal wheel, inches
+    2.0;
 
 constexpr double CENTIDEGREES_PER_REVOLUTION = 36000.0;
 
@@ -66,33 +66,16 @@ constexpr double HORIZONTAL_INCHES_PER_CENTIDEGREE =
     CENTIDEGREES_PER_REVOLUTION;
 
 // --------------------------------------------------
-// Tracking-wheel placement
+// Tracking-wheel placement (gravity centers)
 // --------------------------------------------------
-//
-// Measure these from the robot's rotation center.
-//
-// WHEEL_FORWARD_OFFSET:
-//   Distance from the vertical/forward tracking wheel
-//   to the robot's center of rotation.
-//
-// WHEEL_SIDE_OFFSET:
-//   Distance from the horizontal/sideways tracking wheel
-//   to the robot's center of rotation.
-//
-// Positive or negative signs depend on which side of
-// the robot the wheels are mounted.
-//
 
 constexpr double WHEEL_FORWARD_OFFSET =
-    0.625;  // PERSONALIZE: inches
+    0.625;
 
 constexpr double WHEEL_SIDE_OFFSET =
-    3.75;   // PERSONALIZE: inches
+    3.75;
 
-// The vertical tracking wheel measures forward/backward movement.
 constexpr pros::Rotation &ENCODER_FOR_X = encodervertical;
-
-// The horizontal tracking wheel measures sideways movement.
 constexpr pros::Rotation &ENCODER_FOR_Y = encoderhorizontal;
 
 // --------------------------------------------------
@@ -162,8 +145,6 @@ void reset_odometry(
 
     odometry_mutex.give();
 
-    // Reset the odometry reference values without resetting
-    // the physical sensors.
     previousEncoderX =
         ENCODER_FOR_X.get_position();
 
@@ -173,25 +154,6 @@ void reset_odometry(
     previousHeadingDegrees =
         imu.get_heading();
 }
-
-// --------------------------------------------------
-// Drive output
-// --------------------------------------------------
-//
-// This function performs "desaturation."
-//
-// Example:
-//   left  = 600 RPM
-//   right = 900 RPM
-//
-// Instead of clipping the right side and damaging the
-// requested turn, both sides are scaled proportionally:
-//
-//   left  -> 400 RPM
-//   right -> 600 RPM
-//
-// This allows turning while driving forward at full stick.
-//
 
 void set_tank_speed(
     double left_speed,
@@ -267,7 +229,6 @@ void tareaOdometria(void *param) {
             currentEncoderY -
             previousEncoderY;
 
-        // Each encoder uses its own wheel diameter.
         double rawDeltaX =
             deltaEncoderX *
             VERTICAL_INCHES_PER_CENTIDEGREE;
@@ -287,8 +248,6 @@ void tareaOdometria(void *param) {
             M_PI /
             180.0;
 
-        // Remove movement caused only by the tracking wheels
-        // traveling around the center of rotation.
         double correctedDeltaX =
             rawDeltaX -
             (WHEEL_SIDE_OFFSET * deltaHeadingRadians);
@@ -308,7 +267,6 @@ void tareaOdometria(void *param) {
         double sin_heading =
             std::sin(headingRadians);
 
-        // Convert robot-local movement to field coordinates.
         double fieldDeltaX =
             (correctedDeltaX * cos_heading) -
             (correctedDeltaY * sin_heading);

@@ -82,14 +82,69 @@ void opcontrol() {
     constexpr double TURN_SENSITIVITY =
         1.5;
 
-    // This limits how quickly turning speed changes.
-    // Increase for faster turning response.
     constexpr double MAX_TURN_ACCEL =
         50.0;
 
     double previous_turn_speed = 0.0;
 
+    // Track the previous button state to detect edges
+    bool previous_B = false;
+    bool previous_DOWN = false;
+
     while (true) {
+        // ====================================
+        // Button monitoring for autonomous
+        // ====================================
+        //
+        // Press L1 + R1 together to trigger autonomous.
+        // You can change this to use different buttons.
+        //
+
+        bool current_B =
+            master.get_digital(
+                pros::E_CONTROLLER_DIGITAL_B
+            );
+
+        bool current_DOWN =
+            master.get_digital(
+                pros::E_CONTROLLER_DIGITAL_DOWN
+            );
+
+        // Detect when both buttons are pressed (rising edge).
+        bool both_pressed =
+            current_B &&
+            current_DOWN;
+
+        bool both_just_pressed =
+            both_pressed &&
+            (!previous_B || !previous_DOWN);
+
+        if (both_just_pressed) {
+            // Display message on screen.
+            pros::lcd::clear_line(7);
+            pros::lcd::set_text(
+                7,
+                "Running Autonomous!"
+            );
+
+            // Run the autonomous routine.
+            autonomous();
+
+            // Clear the message after done.
+            pros::lcd::clear_line(7);
+            pros::lcd::set_text(
+                7,
+                "Auto Done"
+            );
+        }
+
+        previous_B = current_B;
+        previous_DOWN = current_DOWN;
+
+        // ====================================
+        // Normal driver control
+        // ====================================
+
         int forward_raw =
             master.get_analog(
                 pros::E_CONTROLLER_ANALOG_LEFT_Y
@@ -153,9 +208,6 @@ void opcontrol() {
             forward_rpm +
             turn_rpm;
 
-        // set_tank_speed() automatically scales both
-        // sides proportionally if either side exceeds
-        // MAX_MOTOR_RPM.
         set_tank_speed(
             left_speed,
             right_speed

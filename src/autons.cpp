@@ -8,23 +8,13 @@
 // --------------------------------------------------
 
 void girarAngulo(double objetivoTheta) {
-    constexpr double ANGLE_TOLERANCE =
-        2.0;
+    constexpr double ANGLE_TOLERANCE = 2.0;
+    constexpr double MAX_TURN_SPEED = 250.0;
+    constexpr double MIN_TURN_SPEED = 35.0;
+    constexpr uint32_t TIMEOUT_MS = 4000;
+    constexpr double TURN_KP = 4.0;
 
-    constexpr double MAX_TURN_SPEED =
-        250.0;
-
-    constexpr double MIN_TURN_SPEED =
-        35.0;
-
-    constexpr uint32_t TIMEOUT_MS =
-        4000;
-
-    constexpr double TURN_KP =
-        4.0;
-
-    uint32_t start_time =
-        pros::millis();
+    uint32_t start_time = pros::millis();
 
     while (
         pros::millis() - start_time <
@@ -64,8 +54,6 @@ void girarAngulo(double objetivoTheta) {
                 MAX_TURN_SPEED
             );
 
-        // Prevent extremely weak motor commands near
-        // the target from being ignored.
         if (
             std::fabs(turn_speed) <
             MIN_TURN_SPEED
@@ -96,26 +84,17 @@ void moverAPunto(
     double objetivoY,
     double objetivoTheta
 ) {
-    constexpr double POSITION_TOLERANCE =
-        1.0;
+    constexpr double POSITION_TOLERANCE = 3.0;
+    constexpr double MAX_DRIVE_SPEED = 400.0;
+    constexpr double MAX_TURN_SPEED = 220.0;
+    constexpr uint32_t TIMEOUT_MS = 5000;
 
-    constexpr double MAX_DRIVE_SPEED =
-        300.0;
+    // Tune these if the robot overshoots or undershoots
+    constexpr double DISTANCE_KP = 5.0;
+    constexpr double ANGLE_KP = 4.0;
+    constexpr double MIN_DRIVE_SPEED = 40.0;
 
-    constexpr double MAX_TURN_SPEED =
-        220.0;
-
-    constexpr uint32_t TIMEOUT_MS =
-        8000;
-
-    constexpr double DISTANCE_KP =
-        8.0;
-
-    constexpr double ANGLE_KP =
-        4.0;
-
-    uint32_t start_time =
-        pros::millis();
+    uint32_t start_time = pros::millis();
 
     while (
         pros::millis() - start_time <
@@ -182,6 +161,19 @@ void moverAPunto(
             distance_error *
             heading_scale;
 
+        // Prevent the robot from moving
+        // so slowly it stalls.
+        if (
+            std::fabs(forward_speed) <
+            MIN_DRIVE_SPEED &&
+            forward_speed != 0.0
+        ) {
+            forward_speed =
+                forward_speed >= 0.0
+                    ? MIN_DRIVE_SPEED
+                    : -MIN_DRIVE_SPEED;
+        }
+
         double turn_speed =
             ANGLE_KP *
             heading_error;
@@ -208,8 +200,6 @@ void moverAPunto(
             forward_speed +
             turn_speed;
 
-        // set_tank_speed() desaturates both sides if
-        // forward plus turning exceeds the motor limit.
         set_tank_speed(
             left_speed,
             right_speed
