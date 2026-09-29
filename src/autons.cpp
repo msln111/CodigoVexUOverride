@@ -225,10 +225,10 @@ void autonomous() {
         0.0
     );
 
-    // Move 24 inches in the positive X direction.
+    // Move 24 inches in the positive Y direction.
     moverAPunto(
-        24.0,
         0.0,
+        24.0,
         0.0
     );
 
