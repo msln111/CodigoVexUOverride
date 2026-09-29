@@ -24,7 +24,6 @@ pros::IMU imu(10);
 // -----------------------------
 // Motors and controller// -----------------------------
 
-
 pros::MotorGroup leftMotors({-1, 2, -3, -13});
 pros::MotorGroup rightMotors({5, 6, -7, 8});
 
@@ -152,14 +151,12 @@ void set_tank_speed(
     double left_speed,
     double right_speed
 ) {
-    // Clamp individual motor speeds first
     double largest_requested_speed =
         std::fmax(
             std::fabs(left_speed),
             std::fabs(right_speed)
         );
 
-    // If either motor exceeds max RPM, scale both proportionally
     if (largest_requested_speed > MAX_MOTOR_RPM) {
         double scale =
             MAX_MOTOR_RPM /
@@ -169,7 +166,6 @@ void set_tank_speed(
         right_speed *= scale;
     }
 
-    // Final safety clamp
     left_speed = clamp_speed(
         left_speed,
         -MAX_MOTOR_RPM,

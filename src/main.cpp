@@ -96,7 +96,7 @@ void opcontrol() {
         // Button monitoring for autonomous
         // ====================================
         //
-        // Press L1 + R1 together to trigger autonomous.
+        // Press B + DOWN together to trigger autonomous.
         // You can change this to use different buttons.
         //
 
