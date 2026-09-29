@@ -89,7 +89,7 @@ void moverAPunto(
     constexpr double MAX_TURN_SPEED = 220.0;
     constexpr uint32_t TIMEOUT_MS = 5000;
     // Tune these if the robot overshoots or undershoots
-    constexpr double DISTANCE_KP = 5.0;
+    constexpr double DISTANCE_KP = 2.0;
     constexpr double ANGLE_KP = 4.0;
     constexpr double MIN_DRIVE_SPEED = 40.0;
 
@@ -232,12 +232,6 @@ void autonomous() {
         0.0
     );
 
-    // Keep the same position and rotate to 90 degrees.
-    moverAPunto(
-        24.0,
-        0.0,
-        90.0
-    );
 
     stop_drive();
 }
