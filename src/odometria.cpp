@@ -21,19 +21,12 @@ pros::Rotation encoderhorizontal(11);
 pros::Rotation encodervertical(12);
 pros::IMU imu(10);
 
-pros::MotorGroup leftMotors({
-    -1,
-    2,
-    -3,
-    -13
-});
+// -----------------------------
+// Motors and controller// -----------------------------
 
-pros::MotorGroup rightMotors({
-    5,
-    6,
-    -7,
-    8
-});
+
+pros::MotorGroup leftMotors({-1, 2, -3, -13});
+pros::MotorGroup rightMotors({5, 6, -7, 8});
 
 pros::Controller master(
     pros::E_CONTROLLER_MASTER

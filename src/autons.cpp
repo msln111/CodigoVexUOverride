@@ -88,7 +88,6 @@ void moverAPunto(
     constexpr double MAX_DRIVE_SPEED = 400.0;
     constexpr double MAX_TURN_SPEED = 220.0;
     constexpr uint32_t TIMEOUT_MS = 5000;
-
     // Tune these if the robot overshoots or undershoots
     constexpr double DISTANCE_KP = 5.0;
     constexpr double ANGLE_KP = 4.0;
