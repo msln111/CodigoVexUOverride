@@ -219,11 +219,7 @@ void moverAPunto(
 // --------------------------------------------------
 
 void autonomous() {
-    reset_odometry(
-        0.0,
-        0.0,
-        0.0
-    );
+  
 
     // Move 24 inches in the positive Y direction.
     moverAPunto(

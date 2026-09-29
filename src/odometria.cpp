@@ -18,7 +18,7 @@ pros::Mutex odometry_mutex;
 // --------------------------------------------------
 
 pros::Rotation encoderhorizontal(11);
-pros::Rotation encodervertical(12);
+pros::Rotation encodervertical(-12);
 pros::IMU imu(10);
 
 // -----------------------------
@@ -67,8 +67,8 @@ constexpr double WHEEL_FORWARD_OFFSET =
 constexpr double WHEEL_SIDE_OFFSET =
     3.75;
 
-constexpr pros::Rotation &ENCODER_FOR_X = encodervertical;
-constexpr pros::Rotation &ENCODER_FOR_Y = encoderhorizontal;
+constexpr pros::Rotation &ENCODER_FOR_X = encoderhorizontal;
+constexpr pros::Rotation &ENCODER_FOR_Y = encodervertical;
 
 // --------------------------------------------------
 // Previous sensor readings
