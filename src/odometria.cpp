@@ -36,8 +36,8 @@ pros::MotorGroup leftMotors({
 
 pros::MotorGroup rightMotors({
     5,
-    -6,
-    7,
+    6,
+    -4,
     8
 });
 

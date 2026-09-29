@@ -73,8 +73,8 @@ void moverAPunto(
     constexpr double MAX_TURN_SPEED = 250.0;
     constexpr uint32_t TIMEOUT_MS = 8000;
 
-    constexpr double DISTANCE_KP = 12.0;
-    constexpr double ANGLE_KP = 4.0;
+    constexpr double DISTANCE_KP = 18.0;
+    constexpr double ANGLE_KP = 3.0;
 
     uint32_t start_time = pros::millis();
 
