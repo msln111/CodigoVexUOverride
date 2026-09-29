@@ -6,25 +6,31 @@
 void initialize() {
     pros::lcd::initialize();
 
-    pros::lcd::set_text(0, "Initializing");
+    pros::lcd::set_text(
+        0,
+        "Initializing"
+    );
 
-    // Reset the tracking encoders before starting odometry.
     encoderhorizontal.reset_position();
     encodervertical.reset_position();
 
-    // Calibrate the IMU before starting any background task.
     imu.reset();
 
     while (imu.is_calibrating()) {
         pros::delay(20);
     }
 
-    // Start the coordinate system at the robot's current location.
-    reset_odometry(0.0, 0.0, 0.0);
+    reset_odometry(
+        0.0,
+        0.0,
+        0.0
+    );
 
-    pros::lcd::set_text(0, "IMU Ready");
+    pros::lcd::set_text(
+        0,
+        "IMU Ready"
+    );
 
-    // Start background tasks after the sensors are ready.
     pros::Task odometry_task(
         tareaOdometria,
         nullptr,
@@ -46,113 +52,114 @@ void competition_initialize() {
     stop_drive();
 }
 
+double apply_joystick_curve(
+    double stick_value,
+    double sensitivity_power
+) {
+    double normalized =
+        stick_value / 127.0;
+
+    double sign =
+        normalized >= 0.0
+            ? 1.0
+            : -1.0;
+
+    double magnitude =
+        std::pow(
+            std::abs(normalized),
+            sensitivity_power
+        );
+
+    return sign * magnitude * 127.0;
+}
+
 void opcontrol() {
     constexpr int DEADBAND = 10;
 
-    // The heading the robot should maintain while driving straight.
-    double target_heading = imu.get_heading();
+    constexpr double FORWARD_SENSITIVITY =
+        2.0;
+
+    constexpr double TURN_SENSITIVITY =
+        1.5;
+
+    // This limits how quickly turning speed changes.
+    // Increase for faster turning response.
+    constexpr double MAX_TURN_ACCEL =
+        50.0;
+
+    double previous_turn_speed = 0.0;
 
     while (true) {
-        int forward =
+        int forward_raw =
             master.get_analog(
                 pros::E_CONTROLLER_ANALOG_LEFT_Y
             );
 
-        int turn =
+        int turn_raw =
             -master.get_analog(
                 pros::E_CONTROLLER_ANALOG_RIGHT_X
             );
-// The turn axis is inverted so that positive values lorezo es puto
-        bool turn_requested =
-            std::abs(turn) >= DEADBAND;
-        bool drive_requested =
-            std::abs(forward) >= DEADBAND;
-        if (std::abs(forward) < DEADBAND) {
-            forward = 0;
+
+        if (std::abs(forward_raw) < DEADBAND) {
+            forward_raw = 0;
         }
 
-        if (std::abs(turn) < DEADBAND) {
-            turn = 0;
+        if (std::abs(turn_raw) < DEADBAND) {
+            turn_raw = 0;
         }
 
-        /*
-         * When the driver is turning, do not fight the driver.
-         * Continuously update the target heading so that when the
-         * driver releases the turn stick, the current heading is held.
-         */
-        if (turn_requested) {
-            target_heading = imu.get_heading();
-        }
+        double forward_curved =
+            apply_joystick_curve(
+                forward_raw,
+                FORWARD_SENSITIVITY
+            );
 
-        /*
-         * If the robot is not driving, keep updating the target heading.
-         * This prevents a correction from being applied after sitting still.
-         */
-        if (!drive_requested && !turn_requested) {
-            target_heading = imu.get_heading();
-        }
+        double turn_curved =
+            apply_joystick_curve(
+                turn_raw,
+                TURN_SENSITIVITY
+            );
 
         double forward_rpm =
-            static_cast<double>(forward) *
+            forward_curved *
             (MAX_MOTOR_RPM / 127.0);
 
         double turn_rpm =
-            static_cast<double>(turn) *
+            turn_curved *
             (MAX_TURN_RPM / 127.0);
 
-        double heading_correction = 0.0;
+        double turn_delta =
+            turn_rpm -
+            previous_turn_speed;
 
-        /*
-         * Hold the heading only while driving straight.
-         * Do not apply this correction during intentional turning.
-         */
-        if (drive_requested && !turn_requested) {
-            double current_heading = imu.get_heading();
-
-            double heading_error =
-                normalize_angle_degrees(
-                    target_heading - current_heading
-                );
-
-            heading_correction =
-                HEADING_CORRECTION_SIGN *
-                HEADING_HOLD_KP *
-                heading_error;
-
-            heading_correction = clamp_speed(
-                heading_correction,
-                -MAX_TURN_RPM,
-                MAX_TURN_RPM
-            );
+        if (turn_delta > MAX_TURN_ACCEL) {
+            turn_rpm =
+                previous_turn_speed +
+                MAX_TURN_ACCEL;
+        } else if (turn_delta < -MAX_TURN_ACCEL) {
+            turn_rpm =
+                previous_turn_speed -
+                MAX_TURN_ACCEL;
         }
 
-        /*
-         * Positive turn speed makes the right side faster and
-         * the left side slower.
-         */
+        previous_turn_speed =
+            turn_rpm;
+
         double left_speed =
             forward_rpm -
-            turn_rpm -
-            heading_correction;
+            turn_rpm;
 
         double right_speed =
             forward_rpm +
-            turn_rpm +
-            heading_correction;
+            turn_rpm;
 
-        left_speed = clamp_speed(
+        // set_tank_speed() automatically scales both
+        // sides proportionally if either side exceeds
+        // MAX_MOTOR_RPM.
+        set_tank_speed(
             left_speed,
-            -MAX_MOTOR_RPM,
-            MAX_MOTOR_RPM
+            right_speed
         );
-
-        right_speed = clamp_speed(
-            right_speed,
-            -MAX_MOTOR_RPM,
-            MAX_MOTOR_RPM
-        );
-
-        set_tank_speed(left_speed, right_speed);
 
         pros::delay(20);
     }

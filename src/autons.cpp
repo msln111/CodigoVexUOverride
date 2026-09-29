@@ -3,18 +3,28 @@
 #include <cmath>
 #include <cstdint>
 
-// -----------------------------
+// --------------------------------------------------
 // Turn to a heading
-// -----------------------------
+// --------------------------------------------------
 
 void girarAngulo(double objetivoTheta) {
-    constexpr double ANGLE_TOLERANCE = 2.0;
-    constexpr double MAX_TURN_SPEED = 300.0;
-    constexpr uint32_t TIMEOUT_MS = 4000;
+    constexpr double ANGLE_TOLERANCE =
+        2.0;
 
-    constexpr double TURN_KP = 4.0;
+    constexpr double MAX_TURN_SPEED =
+        250.0;
 
-    uint32_t start_time = pros::millis();
+    constexpr double MIN_TURN_SPEED =
+        35.0;
+
+    constexpr uint32_t TIMEOUT_MS =
+        4000;
+
+    constexpr double TURN_KP =
+        4.0;
+
+    uint32_t start_time =
+        pros::millis();
 
     while (
         pros::millis() - start_time <
@@ -32,21 +42,39 @@ void girarAngulo(double objetivoTheta) {
 
         double error =
             normalize_angle_degrees(
-                objetivoTheta - current_theta
+                objetivoTheta -
+                current_theta
             );
 
-        if (std::fabs(error) <= ANGLE_TOLERANCE) {
+        if (
+            std::fabs(error) <=
+            ANGLE_TOLERANCE
+        ) {
             break;
         }
 
         double turn_speed =
-            TURN_KP * error;
+            TURN_KP *
+            error;
 
-        turn_speed = clamp_speed(
-            turn_speed,
-            -MAX_TURN_SPEED,
-            MAX_TURN_SPEED
-        );
+        turn_speed =
+            clamp_speed(
+                turn_speed,
+                -MAX_TURN_SPEED,
+                MAX_TURN_SPEED
+            );
+
+        // Prevent extremely weak motor commands near
+        // the target from being ignored.
+        if (
+            std::fabs(turn_speed) <
+            MIN_TURN_SPEED
+        ) {
+            turn_speed =
+                turn_speed >= 0.0
+                    ? MIN_TURN_SPEED
+                    : -MIN_TURN_SPEED;
+        }
 
         set_tank_speed(
             -turn_speed,
@@ -59,24 +87,40 @@ void girarAngulo(double objetivoTheta) {
     stop_drive();
 }
 
-// -----------------------------
+// --------------------------------------------------
 // Move to a field coordinate
-// -----------------------------
+// --------------------------------------------------
 
 void moverAPunto(
     double objetivoX,
     double objetivoY,
     double objetivoTheta
 ) {
-    constexpr double POSITION_TOLERANCE = 1.0;
-    constexpr double MAX_DRIVE_SPEED = 450.0;
-    constexpr double MAX_TURN_SPEED = 250.0;
-    constexpr uint32_t TIMEOUT_MS = 8000;
+    constexpr double POSITION_TOLERANCE =
+        1.0;
 
+<<<<<<< HEAD
     constexpr double DISTANCE_KP = 18.0;
     constexpr double ANGLE_KP = 3.0;
+=======
+    constexpr double MAX_DRIVE_SPEED =
+        300.0;
+>>>>>>> 96b1788913361de4eb026b7e7234e7cbd4062802
 
-    uint32_t start_time = pros::millis();
+    constexpr double MAX_TURN_SPEED =
+        220.0;
+
+    constexpr uint32_t TIMEOUT_MS =
+        8000;
+
+    constexpr double DISTANCE_KP =
+        8.0;
+
+    constexpr double ANGLE_KP =
+        4.0;
+
+    uint32_t start_time =
+        pros::millis();
 
     while (
         pros::millis() - start_time <
@@ -93,10 +137,12 @@ void moverAPunto(
         );
 
         double errorX =
-            objetivoX - actualX;
+            objetivoX -
+            actualX;
 
         double errorY =
-            objetivoY - actualY;
+            objetivoY -
+            actualY;
 
         double distance_error =
             std::sqrt(
@@ -112,19 +158,19 @@ void moverAPunto(
         }
 
         double target_angle =
-            std::atan2(errorY, errorX) *
+            std::atan2(
+                errorY,
+                errorX
+            ) *
             180.0 /
             M_PI;
 
         double heading_error =
             normalize_angle_degrees(
-                target_angle - actualTheta
+                target_angle -
+                actualTheta
             );
 
-        /*
-         * Drive forward only when the robot is generally facing
-         * the target. This prevents excessive sideways driving.
-         */
         double heading_scale =
             std::cos(
                 heading_error *
@@ -145,17 +191,19 @@ void moverAPunto(
             ANGLE_KP *
             heading_error;
 
-        forward_speed = clamp_speed(
-            forward_speed,
-            -MAX_DRIVE_SPEED,
-            MAX_DRIVE_SPEED
-        );
+        forward_speed =
+            clamp_speed(
+                forward_speed,
+                -MAX_DRIVE_SPEED,
+                MAX_DRIVE_SPEED
+            );
 
-        turn_speed = clamp_speed(
-            turn_speed,
-            -MAX_TURN_SPEED,
-            MAX_TURN_SPEED
-        );
+        turn_speed =
+            clamp_speed(
+                turn_speed,
+                -MAX_TURN_SPEED,
+                MAX_TURN_SPEED
+            );
 
         double left_speed =
             forward_speed -
@@ -165,6 +213,8 @@ void moverAPunto(
             forward_speed +
             turn_speed;
 
+        // set_tank_speed() desaturates both sides if
+        // forward plus turning exceeds the motor limit.
         set_tank_speed(
             left_speed,
             right_speed
@@ -175,16 +225,14 @@ void moverAPunto(
 
     stop_drive();
 
-    // Rotate to the requested final heading.
-    girarAngulo(objetivoTheta);
+    girarAngulo(
+        objetivoTheta
+    );
 }
 
-// -----------------------------
+// --------------------------------------------------
 // Autonomous routine
-// -----------------------------
-//
-// This must be the only autonomous()
-// definition in the entire project.
+// --------------------------------------------------
 
 void autonomous() {
     reset_odometry(
@@ -193,28 +241,18 @@ void autonomous() {
         0.0
     );
 
+    // Move 24 inches in the positive X direction.
     moverAPunto(
         24.0,
         0.0,
         0.0
     );
 
+    // Keep the same position and rotate to 90 degrees.
     moverAPunto(
         24.0,
-        24.0,
+        0.0,
         90.0
-    );
-
-    moverAPunto(
-        0.0,
-        24.0,
-        180.0
-    );
-
-    moverAPunto(
-        0.0,
-        0.0,
-        270.0
     );
 
     stop_drive();

@@ -11,17 +11,12 @@ constexpr double MAX_MOTOR_RPM = 600.0;
 constexpr double MAX_TURN_RPM = 300.0;
 
 // Heading-hold settings.
-//
-// Increase HEADING_HOLD_KP if the robot still gradually curves.
-// Decrease it if the robot oscillates from side to side.
 constexpr double HEADING_HOLD_KP = 5.0;
-
-// If correction makes the robot curve worse, change this to -1.0.
 constexpr double HEADING_CORRECTION_SIGN = 1.0;
 
 // Global robot position.
-extern double globalHorizontal;
-extern double globalVertical;
+extern double globalX;
+extern double globalY;
 extern double globalTheta;
 
 extern pros::Mutex odometry_mutex;
@@ -38,11 +33,24 @@ extern pros::Rotation encoderhorizontal;
 extern pros::Rotation encodervertical;
 
 // Utility functions.
-double clamp_speed(double value, double minimum, double maximum);
+double clamp_speed(
+    double value,
+    double minimum,
+    double maximum
+);
 
 double normalize_angle_degrees(double angle);
 
-void get_position(double &x, double &y, double &theta);
+double apply_joystick_curve(
+    double stick_value,
+    double sensitivity_power
+);
+
+void get_position(
+    double &x,
+    double &y,
+    double &theta
+);
 
 void reset_odometry(
     double x = 0.0,
@@ -50,7 +58,10 @@ void reset_odometry(
     double theta_degrees = 0.0
 );
 
-void set_tank_speed(double left_speed, double right_speed);
+void set_tank_speed(
+    double left_speed,
+    double right_speed
+);
 
 void stop_drive();
 
