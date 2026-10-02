@@ -2,6 +2,30 @@
 
 #include <cmath>
 #include <cstdint>
+#include <string>
+
+// --------------------------------------------------
+// Helper: Read odometry safely
+// --------------------------------------------------
+
+void read_odometry(double &x, double &y, double &theta) {
+    get_position(x, y, theta);
+}
+
+// --------------------------------------------------
+// Helper: Print debug info to LCD
+// --------------------------------------------------
+
+void print_debug(
+    int line,
+    const std::string &label,
+    double value
+) {
+    pros::lcd::set_text(
+        line,
+        label + ": " + std::to_string(value)
+    );
+}
 
 // --------------------------------------------------
 // Turn to a heading
@@ -24,7 +48,7 @@ void girarAngulo(double objetivoTheta) {
         double current_y;
         double current_theta;
 
-        get_position(
+        read_odometry(
             current_x,
             current_y,
             current_theta
@@ -35,6 +59,11 @@ void girarAngulo(double objetivoTheta) {
                 objetivoTheta -
                 current_theta
             );
+
+        // Print debug info every iteration
+        print_debug(5, "Target Ang", objetivoTheta);
+        print_debug(6, "Current Ang", current_theta);
+        print_debug(7, "Error", error);
 
         if (
             std::fabs(error) <=
@@ -88,7 +117,6 @@ void moverAPunto(
     constexpr double MAX_DRIVE_SPEED = 400.0;
     constexpr double MAX_TURN_SPEED = 220.0;
     constexpr uint32_t TIMEOUT_MS = 5000;
-    // Tune these if the robot overshoots or undershoots
     constexpr double DISTANCE_KP = 2.0;
     constexpr double ANGLE_KP = 4.0;
     constexpr double MIN_DRIVE_SPEED = 40.0;
@@ -103,7 +131,7 @@ void moverAPunto(
         double actualY;
         double actualTheta;
 
-        get_position(
+        read_odometry(
             actualX,
             actualY,
             actualTheta
@@ -122,6 +150,13 @@ void moverAPunto(
                 (errorX * errorX) +
                 (errorY * errorY)
             );
+
+        // Print debug info
+        print_debug(3, "Target X", objetivoX);
+        print_debug(4, "Target Y", objetivoY);
+        print_debug(5, "Actual X", actualX);
+        print_debug(6, "Actual Y", actualY);
+        print_debug(7, "Dist Err", distance_error);
 
         if (
             distance_error <=
@@ -160,8 +195,6 @@ void moverAPunto(
             distance_error *
             heading_scale;
 
-        // Prevent the robot from moving
-        // so slowly it stalls.
         if (
             std::fabs(forward_speed) <
             MIN_DRIVE_SPEED &&
@@ -219,10 +252,25 @@ void moverAPunto(
 // --------------------------------------------------
 
 void autonomous() {
-  
-    reset_odometry(0, 0 ,90.0);   // Move 24 inches in the positive Y direction.
-    moverAPunto(0.0, 5.0, 0.0);
+    // Start position: (0, 0) with heading = 90°
+    // This means robot is facing FORWARD (positive Y)
+    reset_odometry(
+        0.0,
+        0.0,
+        90.0
+    );
 
+    pros::delay(200); // Let odometry stabilize
+
+    // Move 24 inches forward in the positive Y direction
+    // and end facing 0° (rotated to face right/positive X)
+    moverAPunto(
+        0.0,    // Target X (no lateral movement)
+        24.0,   // Target Y (24 inches forward)
+        90.0     // Target heading (face right)
+    );
+
+    pros::delay(500); // Pause to inspect position
 
     stop_drive();
 }
