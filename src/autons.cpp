@@ -220,13 +220,8 @@ void moverAPunto(
 
 void autonomous() {
   
-
-    // Move 24 inches in the positive Y direction.
-    moverAPunto(
-        0.0,
-        24.0,
-        0.0
-    );
+    reset_odometry(0, 0 ,90.0);   // Move 24 inches in the positive Y direction.
+    moverAPunto(0.0, 5.0, 0.0);
 
 
     stop_drive();
