@@ -34,9 +34,9 @@ void print_debug(
 void girarAngulo(double objetivoTheta) {
     constexpr double ANGLE_TOLERANCE = 2.0;
     constexpr double MAX_TURN_SPEED = 250.0;
-    constexpr double MIN_TURN_SPEED = 35.0;
+    constexpr double MIN_TURN_SPEED = 20.0;
     constexpr uint32_t TIMEOUT_MS = 4000;
-    constexpr double TURN_KP = 4.0;
+    constexpr double TURN_KP = 3.0;
 
     uint32_t start_time = pros::millis();
 
@@ -85,7 +85,8 @@ void girarAngulo(double objetivoTheta) {
 
         if (
             std::fabs(turn_speed) <
-            MIN_TURN_SPEED
+            MIN_TURN_SPEED &&
+            std::fabs(error) > 5.0
         ) {
             turn_speed =
                 turn_speed >= 0.0
@@ -118,19 +119,18 @@ void moverAPunto(
     constexpr double MAX_TURN_SPEED = 220.0;
     constexpr uint32_t TIMEOUT_MS = 5000;
     constexpr double DISTANCE_KP = 2.0;
-    constexpr double ANGLE_KP = 4.0;
+    constexpr double ANGLE_KP = 3.5;
     constexpr double MIN_DRIVE_SPEED = 40.0;
 
     uint32_t start_time = pros::millis();
+    double actualX = 0.0;
+    double actualY = 0.0;
+    double actualTheta = 0.0;
 
     while (
         pros::millis() - start_time <
         TIMEOUT_MS
     ) {
-        double actualX;
-        double actualY;
-        double actualTheta;
-
         read_odometry(
             actualX,
             actualY,
@@ -242,9 +242,18 @@ void moverAPunto(
 
     stop_drive();
 
-    girarAngulo(
-        objetivoTheta
-    );
+    double final_heading_error =
+        normalize_angle_degrees(
+            objetivoTheta - actualTheta
+        );
+
+    if (
+        std::fabs(final_heading_error) > 3.0
+    ) {
+        girarAngulo(
+            objetivoTheta
+        );
+    }
 }
 
 // --------------------------------------------------
@@ -263,11 +272,11 @@ void autonomous() {
     pros::delay(200); // Let odometry stabilize
 
     // Move 24 inches forward in the positive Y direction
-    // and end facing 0° (rotated to face right/positive X)
+    // and end facing 90° (keep forward)
     moverAPunto(
         0.0,    // Target X (no lateral movement)
         24.0,   // Target Y (24 inches forward)
-        90.0     // Target heading (face right)
+        90.0    // Target heading (stay forward)
     );
 
     pros::delay(500); // Pause to inspect position
